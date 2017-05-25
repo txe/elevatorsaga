@@ -55,7 +55,7 @@
                 if (floorNum < elv.getPressedFloors()[i] && Math.abs(floorNum - elv.getPressedFloors()[i]) < near) {
                     pFloorNum = elv.getPressedFloors()[i];
                     near = floorNum - elv.getPressedFloors()[i];
-                    dir_flag = "down"; // reversed because don't want to pick up down pass
+                    dir_flag = "up"; // reversed because don't want to pick up down pass
                 }
             }
             // if no down then move up
@@ -64,7 +64,7 @@
                     if (floorNum > elv.getPressedFloors()[i] && Math.abs(floorNum - elv.getPressedFloors()[i]) < near) {
                         pFloorNum = elv.getPressedFloors()[i];
                         near = floorNum - elv.getPressedFloors()[i];
-                        dir_flag = "up"; // don't mind to pick up up pass
+                        dir_flag = "down"; // don't mind to pick up up pass
                     }
                 }
             }
