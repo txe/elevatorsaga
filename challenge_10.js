@@ -29,14 +29,14 @@
                 near = 100;
                 // look for nearest floor
                 for (i = 0; i < wait_up.length; i += 1) {
-                    if (floorNum != i && wait_up[i] == 1 && Math.abs(i - floorNum) < near) {
+                    if (floorNum != i && wait_up[i] > 0 && Math.abs(i - floorNum) < near) {
                         near = Math.abs(i - floorNum);
                         pFloorNum = i;
                         wait_flag = "up";
                     }
                 }
                 for (i = 0; i < wait_down.length; i += 1) {
-                    if (floorNum != i && wait_down[i] == 1 && Math.abs(i - floorNum) < near) {
+                    if (floorNum != i && wait_down[i] > 0 && Math.abs(i - floorNum) < near) {
                         near = Math.abs(i - floorNum);
                         pFloorNum = i;
                         wait_flag = "down";
@@ -74,12 +74,12 @@
                 }
             });
             elv.on("passing_floor", function (floorNum, dir) {
-                if (dir == "up" && wait_up[floorNum] > 0) {
+                if (dir == "up" && wait_up[floorNum] > 0 && elv.maxPassengerCount() < 1) {
                     console.log("-- --- stop on passing up, elv: ", elevNum, " floor: ", floorNum);
                     elv.destinationQueue = [floorNum];
                     elv.checkDestinationQueue();
                 }
-                if (dir == "down" && wait_down[floorNum] > 0) {
+                if (dir == "down" && wait_down[floorNum] > 0 && elv.maxPassengerCount() < 1) {
                     console.log("-- --- stop on passing up, elv: ", elevNum, " floor: ", floorNum);
                     elv.destinationQueue = [floorNum];
                     elv.checkDestinationQueue();
