@@ -7,61 +7,90 @@
         var my_elvs = [];
         var pas_counter = 1;
 
-
         var fire_press_button = function (floor, dir) {
             for (i = 0; i < my_elvs.length; i += 1) {
                 my_elvs[i].press_button(floor, dir);
             }
         }
 
-        var move = function (elv, floorNum) {
-            var i, up, wait_flag = "none",
-                pFloorNum = floorNum,
-                near = 100,
-                counter = 0;
+        var log = function(elevNum, floorNum, text) {
+            console.log("elev: ", elevNum, " floor: ", floorNum, " ", text);
+        };
+
+        var moveTo = function(elv, floorNum){
+            elv.moveTo = floorNum;
+            elv.goToFloor(floorNum);
+        }
+
+        var stopAt = function(elv, floorNum) {
+            elv.moveTo = floorNum;
+        }
+
+        var take_move = function(elv, floorNum, dir) {
+            var i;
+            var up = false, down = false;
+            for (i = 0; i < elevators.length; i += 1) {
+                if (elevators[i] != elv) {
+                    if (elevators[i].moveTo == floorNum) {
+                        if (elevators[i].loadFactor() == 0) {
+                            return false;
+                        }
+                        // they pick up 
+                        up |= wait_up[floorNum] == 0 || (wait_up[floorNum] > 0 && elevators[i].goingUpIndicator());
+                        down |= wait_down[floorNum] == 0 || (wait_down[floorNum] > 0 && elevators[i].goingDownIndicator());
+                        if (up && down) {
+                            return false;
+                        }
+                    }
+                }
+            }
+            return true;
+        }
+
+        var calc_move = function (elv, floorNum) {
+            var i, up, dir_flag = "both",
+                pFloorNum = floorNum, near = 100;
+            // move them down 
             for (i = 0; i < elv.getPressedFloors().length; ++i) {
-                if (floorNum != elv.getPressedFloors()[i] && Math.abs(floorNum - elv.getPressedFloors()[i]) < near) {
+                if (floorNum < elv.getPressedFloors()[i] && Math.abs(floorNum - elv.getPressedFloors()[i]) < near) {
                     pFloorNum = elv.getPressedFloors()[i];
                     near = floorNum - elv.getPressedFloors()[i];
+                    dir_flag = "down"; // reversed because don't want to pick up down pass
                 }
             }
+            // if no down then move up
             if (pFloorNum == floorNum) {
-
-                for (i = 0; i < wait_up.length; i += 1) {
-                    if (i != floorNum && wait_up[i] != 0 && (counter == 0 || wait_up[i] < counter)) {
-                        counter = wait_up[i];
-                        pFloorNum = i;
-                        wait_flag = "up";
-                    }
-                    if (i != floorNum && wait_down[i] != 0 && (counter == 0 || wait_down[i] < counter)) {
-                        counter = wait_down[i];
-                        pFloorNum = i;
-                        wait_flag = "down";
+                for (i = 0; i < elv.getPressedFloors().length; ++i) {
+                    if (floorNum > elv.getPressedFloors()[i] && Math.abs(floorNum - elv.getPressedFloors()[i]) < near) {
+                        pFloorNum = elv.getPressedFloors()[i];
+                        near = floorNum - elv.getPressedFloors()[i];
+                        dir_flag = "up"; // don't mind to pick up up pass
                     }
                 }
-                // near = 100;
-                // // look for nearest floor
-                // for (i = 0; i < wait_up.length; i += 1) {
-                //     if (floorNum != i && wait_up[i] == 1 && Math.abs(i - floorNum) < near) {
-                //         near = Math.abs(i - floorNum);
-                //         pFloorNum = i;
-                //         wait_flag = "up";
-                //     }
-                // }
-                // for (i = 0; i < wait_down.length; i += 1) {
-                //     if (floorNum != i && wait_down[i] == 1 && Math.abs(i - floorNum) < near) {
-                //         near = Math.abs(i - floorNum);
-                //         pFloorNum = i;
-                //         wait_flag = "down";
-                //     }
-                // }
+            }
+
+            // just pick up floor
+            if (pFloorNum == floorNum) {
+                var paths = []
+                for (i = 0; i < wait_up.length; i += 1) {
+                    if (i != floorNum && wait_up[i] != 0) {
+                        paths.push({floor: i, counter: wait_up[i]});
+                    }
+                    if (i != floorNum && wait_down[i] != 0) {
+                        paths.push({floor: i, counter: wait_down[i]});
+                    }
+                }
+                paths.sort(function(a,b) { return a.counter - b.counter;});
+                for (i = 0; i < paths.length && pFloorNum == floorNum; i += 1) {
+                    if (take_move(elv, paths[i].floor)) {
+                        pFloorNum = paths[i].floor;
+                    }
+                }
+
             }
             if (floorNum != pFloorNum) {
-                up = floorNum < pFloorNum;
-                elv.goingUpIndicator(up);
-                elv.goingDownIndicator(!up);
-                if (wait_flag == "up") wait_up[pFloorNum] = 0;
-                if (wait_flag == "down") wait_down[pFloorNum] = 0;
+                elv.goingUpIndicator(dir_flag == "up" || dir_flag == "both");
+                elv.goingDownIndicator(dir_flag != "up" || dir_flag == "both");
                 return pFloorNum;
             }
 
@@ -71,56 +100,58 @@
         };
 
         var gc_elv = function (elv, elevNum) {
-            var next_floor = -1,
-                event,
-                press_button;
+            var press_button;
 
             elv.goingUpIndicator(true);
             elv.goingDownIndicator(false);
+            elv.next_floor = elevNum;
+            moveTo(elv, elv.next_floor);
 
             elv.on("idle", function () {
-                if (next_floor == -1) {
-                    next_floor = move(elv, elv.currentFloor());
-                }
-                if (next_floor != -1) {
-                    elv.goToFloor(next_floor);
+                elv.next_floor = calc_move(elv, elv.currentFloor());
+                if (elv.next_floor != -1) {
+                    log(elevNum, elv.currentFloor(), " go to " + elv.next_floor);
+                    moveTo(elv, elv.next_floor);
                 }
             });
             elv.on("passing_floor", function (floorNum, dir) {
-                if (dir == "up" && wait_up[floorNum] > 0) {
-                    console.log("-- --- stop on passing up, elv: ", elevNum, " floor: ", floorNum);
-                    elv.destinationQueue = [floorNum];
-                    elv.checkDestinationQueue();
+                if (dir == "up" && wait_up[floorNum] > 0 && elv.maxPassengerCount() < 1 && take_move(elv, floorNum, dir)) {
+                    log(elevNum, floorNum, "-- --- stop on passing up");
+                    moveTo(elv, floorNum);
                 }
-                if (dir == "down" && wait_down[floorNum] > 0) {
-                    console.log("-- --- stop on passing up, elv: ", elevNum, " floor: ", floorNum);
-                    elv.destinationQueue = [floorNum];
-                    elv.checkDestinationQueue();
+                if (dir == "down" && wait_down[floorNum] > 0 && elv.maxPassengerCount() < 1 && take_move(elv, floorNum, dir)) {
+                    log(elevNum, floorNum, "-- --- stop on passing up");
+                    moveTo(elv, floorNum);
                 }
 
             });
             elv.on("floor_button_pressed", function (floorNum) {
                 // someone enters, no need to wait
-                console.log("button pressed, elv: ", elevNum, " floor: ", floorNum);
+                log(elevNum, elv.currentFloor(), "button pressed to " + floorNum);
                 if (elv.goingUpIndicator()) {
-                    console.log("clear up, elv: ", elevNum, " floor: ", floorNum);
+                    log(elevNum, elv.currentFloor(), "clear up current floor");
                     wait_up[elv.currentFloor()] = 0;
                 }
                 if (elv.goingDownIndicator()) {
-                    console.log("clear down, elv: ", elevNum, " floor: ", floorNum);
+                    log(elevNum, elv.currentFloor(), "clear down current floor");
                     wait_down[elv.currentFloor()] = 0;
+                }
+                if (elv.maxPassengerCount() == 1) {
+                    elv.trigger("idle");
                 }
             });
             elv.on("stopped_at_floor", function (floorNum) {
-                next_floor = move(elv, floorNum);
+                log(elevNum, floorNum, "stopped at floor");
+                stopAt(elv, floorNum);
+                elv.next_floor = calc_move(elv, floorNum);
             });
 
             press_button = function (floor, dir) {
-                if (next_floor == -1) {
-                    next_floor = move(elv, elv.currentFloor());
-                    if (next_floor != -1) {
-                        console.log("press floor button, elv: " + elevNum + ", floor: " + floor.floorNum() + ", dir: " + dir);
-                        elv.goToFloor(next_floor);
+                if (elv.next_floor == -1) {
+                    elv.next_floor = calc_move(elv, elv.currentFloor());
+                    if (elv.next_floor != -1) {
+                        log(elevNum, elv.currentFloor(),  " go to by floor button, floor = " + floor.floorNum() + " dir = " + dir);
+                        moveTo(elv, elv.next_floor);
                     }
                 }
             };
@@ -135,6 +166,7 @@
                     wait_up[floor.floorNum()] = pas_counter;
                     pas_counter += 1;
                 }
+                console.log("floor up: ", floor.floorNum());
                 fire_press_button(floor, "up");
 
             });
@@ -143,6 +175,7 @@
                     wait_down[floor.floorNum()] = pas_counter;
                     pas_counter += 1;
                 }
+                console.log("floor down: ", floor.floorNum());
                 fire_press_button(floor, "down");
             });
         };
